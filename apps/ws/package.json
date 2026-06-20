@@ -1,0 +1,23 @@
+{
+  "name": "@draw/ws",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@draw/shared": "workspace:*",
+    "socket.io": "^4.8.0",
+    "hono": "^4.7.0",
+    "@hono/node-server": "^1.14.0",
+    "nanoid": "^5.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.12.0"
+  }
+}
