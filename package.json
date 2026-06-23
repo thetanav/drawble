@@ -5,12 +5,14 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "prettier": "^3.4.0",
     "turbo": "^2.4.0",
-    "typescript": "^5.7.0",
-    "prettier": "^3.4.0"
+    "typescript": "^5.7.0"
   },
   "packageManager": "pnpm@9.15.0"
 }
