@@ -40,6 +40,17 @@ export function useSocket() {
       setWordChoices(data.words);
     });
 
+    socket.on(EVENTS.GAME_HINT, (data: { hints: string[] }) => {
+      useGameStore.setState((state) => ({
+        gameState: state.gameState
+          ? {
+              ...state.gameState,
+              hints: data.hints,
+            }
+          : state.gameState,
+      }));
+    });
+
     socket.on(EVENTS.GAME_ROUND_START, (data: any) => {
       const currentWord = useGameStore.getState().gameState?.currentWord ?? '';
       setGameState({
@@ -102,6 +113,7 @@ export function useSocket() {
     return () => {
       socket.off(EVENTS.ROOM_STATE);
       socket.off(EVENTS.GAME_WORD_CHOICES);
+      socket.off(EVENTS.GAME_HINT);
       socket.off(EVENTS.GAME_ROUND_START);
       socket.off(EVENTS.TIMER_TICK);
       socket.off(EVENTS.GAME_CORRECT_GUESS);

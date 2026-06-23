@@ -40,7 +40,7 @@ export function setupGameHandlers(
     if (room.game.currentDrawer !== socket.id) return;
     if (room.game.phase !== 'choosing') return;
 
-    const gameState = gameEngine.selectWord(room, data.word);
+    const gameState = gameEngine.selectWord(room, data.word, io);
 
     io.to(room.id).emit(EVENTS.GAME_ROUND_START, {
       drawer: gameState.currentDrawer,
@@ -112,31 +112,12 @@ export function setupGameHandlers(
       handleRoundEnd(io, room, roomManager, gameEngine);
     }
   });
-
-  socket.on(EVENTS.TIMER_TICK, () => {
-    const room = roomManager.getRoomByPlayer(socket.id);
-    if (!room || !room.game) return;
-
-    if (room.game.timer > 0 && room.game.phase === 'drawing') {
-      room.game.timer--;
-      io.to(room.id).emit(EVENTS.TIMER_TICK, { timeLeft: room.game.timer });
-
-      if (room.game.timer <= 0) {
-        room.game.phase = 'paused';
-        io.to(room.id).emit(EVENTS.GAME_ROUND_END, {
-          word: room.game.currentWord,
-          leaderboard: gameEngine.getLeaderboard(room),
-        });
-      }
-    }
-  });
 }
 
 function handleRoundEnd(io: Server, room: any, roomManager: RoomManager, gameEngine: GameEngine) {
   if (!room.game) return;
 
   gameEngine.clearTimer(room.id);
-  gameEngine.clearHintTimer(room.id);
 
   const leaderboard = gameEngine.getLeaderboard(room);
 

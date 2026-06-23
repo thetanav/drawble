@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
-import { EVENTS } from '@draw/shared';
 import { RoomManager } from './state/roomManager.js';
 import { GameEngine } from './game/engine.js';
 import { setupConnectionHandlers } from './handlers/connection.js';
@@ -49,31 +48,7 @@ io.on('connection', (socket) => {
   setupRoomHandlers(io, socket, roomManager);
   setupGameHandlers(io, socket, roomManager, gameEngine);
   setupChatHandlers(io, socket, roomManager);
-
-  socket.on(EVENTS.ROOM_LIST, () => {
-    socket.emit(EVENTS.ROOM_LIST_UPDATE, roomManager.getRoomList());
-  });
 });
-
-setInterval(() => {
-  const rooms = roomManager.getAllRooms();
-  rooms.forEach((room) => {
-    if (room.game && room.game.phase === 'drawing') {
-      room.game.timer--;
-      io.to(room.id).emit(EVENTS.TIMER_TICK, { timeLeft: room.game.timer });
-
-      if (room.game.timer <= 0) {
-        room.game.phase = 'paused';
-        gameEngine.clearTimer(room.id);
-        gameEngine.clearHintTimer(room.id);
-        io.to(room.id).emit(EVENTS.GAME_ROUND_END, {
-          word: room.game.currentWord,
-          leaderboard: gameEngine.getLeaderboard(room),
-        });
-      }
-    }
-  });
-}, 1000);
 
 httpServer.listen(PORT, () => {
   console.log(`WebSocket server running on port ${PORT}`);

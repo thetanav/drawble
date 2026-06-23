@@ -1,11 +1,14 @@
+import type { Server } from 'socket.io';
 import type { GameState, Room, LeaderboardEntry, GameStats } from '@draw/shared';
-import { POINTS, HINT_INTERVAL_SECONDS, GAME_PAUSE_DURATION } from '@draw/shared';
+import {
+  EVENTS,
+  POINTS,
+  HINT_REVEAL_COUNT,
+} from '@draw/shared';
 import { getRandomWords } from '@draw/shared';
-import { nanoid } from 'nanoid';
 
 export class GameEngine {
   private timers = new Map<string, ReturnType<typeof setInterval>>();
-  private hintTimers = new Map<string, ReturnType<typeof setInterval>>();
 
   startGame(room: Room): GameState {
     const playerIds = Array.from(room.players.keys());
@@ -30,7 +33,7 @@ export class GameEngine {
     return gameState;
   }
 
-  selectWord(room: Room, word: string): GameState {
+  selectWord(room: Room, word: string, io: Server): GameState {
     if (!room.game) throw new Error('Game not started');
     room.game.currentWord = word;
     room.game.phase = 'drawing';
@@ -38,8 +41,7 @@ export class GameEngine {
     room.game.timer = room.settings.drawTime;
     room.game.guessedPlayers = [];
 
-    this.startTimer(room);
-    this.startHintTimer(room);
+    this.startTimer(room, io);
 
     return room.game;
   }
@@ -48,51 +50,26 @@ export class GameEngine {
     return word.split('').map((char) => (char === ' ' ? ' ' : '_'));
   }
 
-  private startHintTimer(room: Room): void {
-    // timer for user to select a word to draw
-    this.clearHintTimer(room.id);
+  private startTimer(room: Room, io: Server): void {
+    this.clearTimer(room.id);
 
-    let hintIndex = 0;
     const word = room.game!.currentWord;
     const revealableIndices: number[] = [];
-
     word.split('').forEach((char, i) => {
       if (char !== ' ') revealableIndices.push(i);
     });
 
-    // Shuffle reveal order
+    // Shuffle reveal order once per round so hints feel organic.
     for (let i = revealableIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [revealableIndices[i], revealableIndices[j]] = [revealableIndices[j], revealableIndices[i]];
     }
 
-    const maxHints = Math.min(
-      revealableIndices.length,
-      Math.floor(room.settings.drawTime / HINT_INTERVAL_SECONDS)
+    const maxHints = Math.min(revealableIndices.length, HINT_REVEAL_COUNT);
+    const revealThresholds = Array.from({ length: maxHints }, (_, index) =>
+      Math.floor((room.settings.drawTime * (maxHints - index)) / (maxHints + 1))
     );
-
-    const timer = setInterval(() => {
-      if (!room.game || room.game.phase !== 'drawing') {
-        this.clearHintTimer(room.id);
-        return;
-      }
-
-      if (hintIndex >= maxHints) {
-        this.clearHintTimer(room.id);
-        return;
-      }
-
-      const idx = revealableIndices[hintIndex];
-      room.game.hints[idx] = word[idx];
-      hintIndex++;
-    }, HINT_INTERVAL_SECONDS * 1000);
-
-    this.hintTimers.set(room.id, timer);
-  }
-
-  private startTimer(room: Room): void {
-    // timer for other to guess
-    this.clearTimer(room.id);
+    let hintIndex = 0;
 
     const timer = setInterval(() => {
       if (!room.game || room.game.phase !== 'drawing') {
@@ -101,11 +78,27 @@ export class GameEngine {
       }
 
       room.game.timer--;
+      io.to(room.id).emit(EVENTS.TIMER_TICK, { timeLeft: room.game.timer });
+
+      if (hintIndex < maxHints && room.game.timer <= revealThresholds[hintIndex]) {
+        const idx = revealableIndices[hintIndex];
+        room.game.hints[idx] = word[idx];
+        io.to(room.id).emit(EVENTS.GAME_HINT, {
+          index: idx,
+          hint: word[idx],
+          hints: room.game.hints,
+          timeLeft: room.game.timer,
+        });
+        hintIndex++;
+      }
 
       if (room.game.timer <= 0) {
         this.clearTimer(room.id);
-        this.clearHintTimer(room.id);
         room.game.phase = 'paused';
+        io.to(room.id).emit(EVENTS.GAME_ROUND_END, {
+          word: room.game.currentWord,
+          leaderboard: this.getLeaderboard(room),
+        });
       }
     }, 1000);
 
@@ -117,14 +110,6 @@ export class GameEngine {
     if (timer) {
       clearInterval(timer);
       this.timers.delete(roomId);
-    }
-  }
-
-  clearHintTimer(roomId: string): void {
-    const timer = this.hintTimers.get(roomId);
-    if (timer) {
-      clearInterval(timer);
-      this.hintTimers.delete(roomId);
     }
   }
 
@@ -171,8 +156,6 @@ export class GameEngine {
       room.game.scores.set(room.game.currentDrawer, drawerScore + POINTS.DRAWER_BONUS);
     }
 
-    // TODO: Now we have to reveal the hints
-
     return { correct: true, points: finalPoints };
   }
 
@@ -189,7 +172,6 @@ export class GameEngine {
     if (!room.game) return null;
 
     this.clearTimer(room.id);
-    this.clearHintTimer(room.id);
 
     const playerIds = Array.from(room.players.keys());
     const currentDrawerIndex = playerIds.indexOf(room.game.currentDrawer);

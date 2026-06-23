@@ -30,7 +30,6 @@ export function setupConnectionHandlers(
 
         if (result.room.status === 'playing' && room.game) {
           gameEngine.clearTimer(room.id);
-          gameEngine.clearHintTimer(room.id);
 
           if (result.room.players.size === 0) {
             room.game = null;
