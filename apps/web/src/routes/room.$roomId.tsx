@@ -34,6 +34,9 @@ function RoomComponent() {
 
   const isDrawer = gameState?.currentDrawer === playerId;
   const players = currentRoom ? Array.from(currentRoom.players.values()) : [];
+  const currentPlayer = currentRoom?.players.get(playerId ?? '');
+  const isReady = currentPlayer?.ready ?? false;
+  const allPlayersReady = players.length > 1 && players.every((player) => player.ready);
   const shownWord = selectedWord || gameState?.currentWord || '';
 
   useEffect(() => {
@@ -267,13 +270,21 @@ function RoomComponent() {
 
             {currentRoom.status === 'lobby' ? (
               <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3">
-                <Button onClick={() => setReady(true)} variant="outline">
-                  Ready
+                <Button onClick={() => setReady(!isReady)} variant="outline">
+                  {isReady ? 'Unready' : 'Ready'}
                 </Button>
                 {currentRoom.host === playerId ? (
-                  <Button onClick={startGame} disabled={players.length < 2}>
+                  <Button
+                    onClick={startGame}
+                    disabled={players.length < 2 || !allPlayersReady}
+                  >
                     Start
                   </Button>
+                ) : null}
+                {currentRoom.host === playerId && !allPlayersReady ? (
+                  <p className="w-full text-xs text-slate-400">
+                    Waiting for every player to mark ready.
+                  </p>
                 ) : null}
               </div>
             ) : null}
@@ -297,6 +308,9 @@ function RoomComponent() {
                 >
                   <span>{AVATARS[player.avatarId]?.emoji || '😀'}</span>
                   <span className="flex-1 truncate">{player.nickname}</span>
+                  <span className={`text-xs ${player.ready ? 'text-emerald-300' : 'text-slate-400'}`}>
+                    {player.ready ? 'Ready' : 'Not ready'}
+                  </span>
                   {player.id === currentRoom.host ? <span>★</span> : null}
                 </div>
               ))}

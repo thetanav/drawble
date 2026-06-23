@@ -5,7 +5,7 @@ import { getSocket, connectSocket } from '../lib/socket';
 
 export function useSocket() {
   const socketRef = useRef(getSocket());
-  const { nickname, avatarId } = usePlayerStore();
+  const { nickname, avatarId, setPlayer } = usePlayerStore();
   const { setRoom } = useRoomStore();
   const { setGameState, setWordChoices, setTimeLeft } = useGameStore();
   const { addMessage } = useChatStore();
@@ -127,11 +127,20 @@ export function useSocket() {
 
   const joinSocket = useCallback(() => {
     const socket = socketRef.current;
-    if (!socket.connected) {
-      connectSocket();
+    const announcePlayer = () => {
+      if (!socket.id) return;
+      setPlayer(socket.id, nickname, avatarId);
+      socket.emit(EVENTS.PLAYER_JOIN, { nickname, avatarId });
+    };
+
+    if (socket.connected) {
+      announcePlayer();
+      return;
     }
-    socket.emit(EVENTS.PLAYER_JOIN, { nickname, avatarId });
-  }, [nickname, avatarId]);
+
+    socket.once('connect', announcePlayer);
+    connectSocket();
+  }, [nickname, avatarId, setPlayer]);
 
   const createRoom = useCallback(
     (settings?: any) => {

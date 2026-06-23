@@ -21,6 +21,10 @@ export function setupGameHandlers(
       socket.emit(EVENTS.ERROR, { message: 'Need at least 2 players' });
       return;
     }
+    if (!Array.from(room.players.values()).every((player) => player.ready)) {
+      socket.emit(EVENTS.ERROR, { message: 'All players must be ready before starting' });
+      return;
+    }
 
     const gameState = gameEngine.startGame(room);
     const choices = gameEngine.getWordChoices(room);

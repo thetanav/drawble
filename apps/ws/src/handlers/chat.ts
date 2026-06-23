@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { EVENTS } from '@draw/shared';
 import type { RoomManager } from '../state/roomManager.js';
+import { serializeRoom } from './connection.js';
 
 export function setupChatHandlers(
   io: Server,
@@ -34,10 +35,6 @@ export function setupChatHandlers(
     if (!player) return;
 
     player.ready = data.ready;
-    io.to(room.id).emit(EVENTS.ROOM_STATE, {
-      ...room,
-      players: Array.from(room.players.values()),
-      game: null,
-    });
+    io.to(room.id).emit(EVENTS.ROOM_STATE, serializeRoom(room));
   });
 }
