@@ -5,7 +5,7 @@ import { getSocket, connectSocket } from '../lib/socket';
 
 export function useSocket() {
   const socketRef = useRef(getSocket());
-  const { id, nickname, avatarId } = usePlayerStore();
+  const { nickname, avatarId } = usePlayerStore();
   const { setRoom } = useRoomStore();
   const { setGameState, setWordChoices, setTimeLeft } = useGameStore();
   const { addMessage } = useChatStore();
@@ -41,11 +41,12 @@ export function useSocket() {
     });
 
     socket.on(EVENTS.GAME_ROUND_START, (data: any) => {
+      const currentWord = useGameStore.getState().gameState?.currentWord ?? '';
       setGameState({
         currentRound: data.round,
         totalRounds: data.totalRounds,
         currentDrawer: data.drawer,
-        currentWord: '',
+        currentWord: data.word ?? currentWord,
         hints: data.hints || [],
         phase: data.hints ? 'drawing' : 'choosing',
         timer: data.drawTime || 80,
@@ -53,6 +54,7 @@ export function useSocket() {
         drawingData: [],
         guessedPlayers: [],
       });
+      setWordChoices([]);
     });
 
     socket.on(EVENTS.TIMER_TICK, (data: { timeLeft: number }) => {

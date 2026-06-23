@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { WORD_BANK } from '@draw/shared';
+import { AVATARS, WORD_BANK } from '@draw/shared';
 import type { WordPack } from '@draw/shared';
 
 const app = new Hono();
@@ -9,6 +9,7 @@ app.get('/health', (c) => {
 });
 
 app.get('/words/:pack', (c) => {
+  // random shuffled words from the category
   const pack = c.req.param('pack') as WordPack;
   const words = WORD_BANK[pack];
   if (!words) {
@@ -27,24 +28,11 @@ app.get('/words/:pack/random/:count', (c) => {
   }
   const shuffled = [...words].sort(() => Math.random() - 0.5);
   return c.json({ pack, words: shuffled.slice(0, count) });
-});
+}); // specific numebr for words from the category
 
 app.get('/avatars', (c) => {
   return c.json({
-    avatars: [
-      { id: 0, emoji: '😀', name: 'Happy' },
-      { id: 1, emoji: '😎', name: 'Cool' },
-      { id: 2, emoji: '🤖', name: 'Robot' },
-      { id: 3, emoji: '👻', name: 'Ghost' },
-      { id: 4, emoji: '🐱', name: 'Cat' },
-      { id: 5, emoji: '🐶', name: 'Dog' },
-      { id: 6, emoji: '🦊', name: 'Fox' },
-      { id: 7, emoji: '🐸', name: 'Frog' },
-      { id: 8, emoji: '🦁', name: 'Lion' },
-      { id: 9, emoji: '🐼', name: 'Panda' },
-      { id: 10, emoji: '🦄', name: 'Unicorn' },
-      { id: 11, emoji: '🐙', name: 'Octopus' },
-    ],
+    avatars: AVATARS,
   });
 });
 

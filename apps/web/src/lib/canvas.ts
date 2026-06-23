@@ -10,11 +10,8 @@ export function getSvgPathFromStroke(stroke: { x: number; y: number }[]): string
   let d = `M ${stroke[0].x} ${stroke[0].y}`;
 
   for (let i = 1; i < stroke.length - 1; i++) {
-    const p0 = stroke[i - 1];
     const p1 = stroke[i];
     const p2 = stroke[i + 1];
-    const cx = (p0.x + p1.x) / 2;
-    const cy = (p0.y + p1.y) / 2;
     const cx2 = (p1.x + p2.x) / 2;
     const cy2 = (p1.y + p2.y) / 2;
     d += ` Q ${p1.x} ${p1.y} ${cx2} ${cy2}`;

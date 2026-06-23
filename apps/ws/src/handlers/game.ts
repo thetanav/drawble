@@ -64,7 +64,7 @@ export function setupGameHandlers(
     const isCorrect = data.text.toLowerCase().trim() === room.game.currentWord.toLowerCase().trim();
 
     if (isCorrect) {
-      const result = gameEngine.processGuess(room, socket.id);
+      const result = gameEngine.processGuess(room, socket.id, data.text);
       if (!result) return;
 
       io.to(room.id).emit(EVENTS.GAME_CORRECT_GUESS, {
@@ -132,12 +132,7 @@ export function setupGameHandlers(
   });
 }
 
-function handleRoundEnd(
-  io: Server,
-  room: any,
-  roomManager: RoomManager,
-  gameEngine: GameEngine
-) {
+function handleRoundEnd(io: Server, room: any, roomManager: RoomManager, gameEngine: GameEngine) {
   if (!room.game) return;
 
   gameEngine.clearTimer(room.id);

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Player, Room, GameState, LeaderboardEntry, ChatMessage } from '@draw/shared';
+import type { Room, GameState, LeaderboardEntry, ChatMessage } from '@draw/shared';
 
 interface PlayerState {
   id: string | null;

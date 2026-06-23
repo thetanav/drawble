@@ -36,6 +36,7 @@ export interface GameState {
   guessedPlayers: string[];
 }
 
+// TODO: simplify this
 export interface DrawingStroke {
   id: string;
   playerId: string;

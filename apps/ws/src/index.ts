@@ -17,16 +17,19 @@ const API_URL = process.env.API_URL || 'http://localhost:3000';
 
 const app = new Hono();
 
-app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
-  credentials: true,
-}));
+app.use(
+  '/*',
+  cors({
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+    credentials: true,
+  })
+);
 
 app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: Date.now() });
 });
 
-const httpServer = createServer(app.fetch);
+const httpServer = createServer(app.fetch as any);
 
 const io = new Server(httpServer, {
   cors: {

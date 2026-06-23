@@ -49,6 +49,7 @@ export class GameEngine {
   }
 
   private startHintTimer(room: Room): void {
+    // timer for user to select a word to draw
     this.clearHintTimer(room.id);
 
     let hintIndex = 0;
@@ -65,7 +66,10 @@ export class GameEngine {
       [revealableIndices[i], revealableIndices[j]] = [revealableIndices[j], revealableIndices[i]];
     }
 
-    const maxHints = Math.min(revealableIndices.length, Math.floor(room.settings.drawTime / HINT_INTERVAL_SECONDS));
+    const maxHints = Math.min(
+      revealableIndices.length,
+      Math.floor(room.settings.drawTime / HINT_INTERVAL_SECONDS)
+    );
 
     const timer = setInterval(() => {
       if (!room.game || room.game.phase !== 'drawing') {
@@ -87,6 +91,7 @@ export class GameEngine {
   }
 
   private startTimer(room: Room): void {
+    // timer for other to guess
     this.clearTimer(room.id);
 
     const timer = setInterval(() => {
@@ -123,19 +128,26 @@ export class GameEngine {
     }
   }
 
-  processGuess(room: Room, playerId: string): { correct: boolean; points: number } | null {
-    if (!room.game || room.game.phase !== 'drawing') return null;
-    if (room.game.guessedPlayers.includes(playerId)) return null;
+  processGuess(
+    room: Room,
+    playerId: string,
+    guess: string
+  ): { correct: boolean; points: number } | null {
+    // will be the actual guess processing logic
+    if (!room.game || room.game.phase !== 'drawing' || room.game.guessedPlayers.includes(playerId))
+      return null;
 
     const word = room.game.currentWord.toLowerCase();
-    const guess = room.game.currentWord.toLowerCase();
+    // const guess = room.game.currentWord.toLowerCase();
 
-    if (word !== guess) return null;
+    if (word !== guess) return null; // guess is incorrect: just ignore
 
     room.game.guessedPlayers.push(playerId);
 
     const guessCount = room.game.guessedPlayers.length;
     let guessPoints = 0;
+
+    // Calculate guess points based on guess count
 
     if (guessCount === 1) guessPoints = POINTS.FIRST_GUESS;
     else if (guessCount === 2) guessPoints = POINTS.SECOND_GUESS;
@@ -147,15 +159,19 @@ export class GameEngine {
 
     // Hint penalty
     const hintsRevealed = room.game.hints.filter((h) => h !== '_').length;
-    const hintPenalty = hintsRevealed * POINTS.HINT_PENALTY_PERCENT / 100;
+    const hintPenalty = (hintsRevealed * POINTS.HINT_PENALTY_PERCENT) / 100;
     const finalPoints = Math.max(0, Math.floor((guessPoints + speedBonus) * (1 - hintPenalty)));
 
     const currentScore = room.game.scores.get(playerId) || 0;
     room.game.scores.set(playerId, currentScore + finalPoints);
 
-    // Drawer gets bonus if someone guessed
-    const drawerScore = room.game.scores.get(room.game.currentDrawer) || 0;
-    room.game.scores.set(room.game.currentDrawer, drawerScore + POINTS.DRAWER_BONUS);
+    // Drawer gets bonus if someone guessed for the first quess only
+    if (guessCount == 1) {
+      const drawerScore = room.game.scores.get(room.game.currentDrawer) || 0;
+      room.game.scores.set(room.game.currentDrawer, drawerScore + POINTS.DRAWER_BONUS);
+    }
+
+    // TODO: Now we have to reveal the hints
 
     return { correct: true, points: finalPoints };
   }
@@ -169,6 +185,7 @@ export class GameEngine {
   }
 
   endRound(room: Room): { nextDrawer: string; nextRound: number } | null {
+    // this function auto increments the rounds and cycles through players
     if (!room.game) return null;
 
     this.clearTimer(room.id);

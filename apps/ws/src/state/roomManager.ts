@@ -14,7 +14,12 @@ export class RoomManager {
     return code;
   }
 
-  createRoom(hostId: string, hostName: string, avatarId: number, settings?: Partial<RoomSettings>): Room {
+  createRoom(
+    hostId: string,
+    hostName: string,
+    avatarId: number,
+    settings?: Partial<RoomSettings>
+  ): Room {
     const roomId = nanoid(12);
     const code = this.generateCode();
     const roomSettings = { ...DEFAULT_ROOM_SETTINGS, ...settings };
@@ -45,9 +50,9 @@ export class RoomManager {
 
   joinRoom(roomCode: string, playerId: string, playerName: string, avatarId: number): Room | null {
     const room = this.findRoomByCode(roomCode);
-    if (!room) return null;
-    if (room.status !== 'lobby') return null;
-    if (room.players.size >= room.settings.maxPlayers) return null;
+
+    if (!room || room.status !== 'lobby' || room.players.size >= room.settings.maxPlayers)
+      return null;
 
     const player: Player = {
       id: playerId,
