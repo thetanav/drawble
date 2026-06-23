@@ -40,7 +40,7 @@ pnpm turbo dev
 # Or start individually:
 cd apps/web && pnpm dev     # http://localhost:5173
 cd apps/api && pnpm dev     # http://localhost:3000
-cd apps/ws  && pnpm dev     # http://localhost:3001
+cd apps/socket  && pnpm dev     # http://localhost:3001
 ```
 
 ## How to Play
