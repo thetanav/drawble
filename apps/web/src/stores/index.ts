@@ -64,10 +64,27 @@ export const useChatStore = create<ChatState>((set) => ({
 
 interface LeaderboardState {
   leaderboard: LeaderboardEntry[];
+  isVisible: boolean;
+  celebrationToken: number;
   setLeaderboard: (entries: LeaderboardEntry[]) => void;
+  showLeaderboard: () => void;
+  hideLeaderboard: () => void;
+  celebrateLeaderboard: () => void;
 }
 
 export const useLeaderboardStore = create<LeaderboardState>((set) => ({
   leaderboard: [],
   setLeaderboard: (entries) => set({ leaderboard: entries }),
+  isVisible: false,
+  celebrationToken: 0,
+  showLeaderboard: () =>
+    set((state) => ({
+      isVisible: true,
+      celebrationToken: state.celebrationToken + 1,
+    })),
+  hideLeaderboard: () => set({ isVisible: false }),
+  celebrateLeaderboard: () =>
+    set((state) => ({
+      celebrationToken: state.celebrationToken + 1,
+    })),
 }));

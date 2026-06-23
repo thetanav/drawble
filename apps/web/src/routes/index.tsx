@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { usePlayerStore } from '@/stores';
+import { IconScribble } from '@tabler/icons-react';
 
 export const Route = createFileRoute('/')({
   component: HomeComponent,
@@ -24,58 +25,60 @@ function HomeComponent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm border-white/15 bg-slate-950/70 text-white shadow-2xl shadow-black/30">
-        <CardHeader className="space-y-2 text-center">
-          <div className="text-4xl">🎨</div>
-          <CardTitle className="text-2xl">Draw Simply Draw</CardTitle>
-          <CardDescription className="text-slate-300">
-            Minimal multiplayer sketch game.
-          </CardDescription>
+      <Card className="w-full max-w-sm">
+        <CardHeader className="flex flex-col items-center">
+          <IconScribble stroke={2} className="size-16" />
+          <CardTitle className="text-2xl">Drawble</CardTitle>
+          <CardDescription>Minimal multiplayer sketch game.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm text-slate-300">Nickname</label>
+            <label className="text-sm">Nickname</label>
             <Input
               placeholder="Enter a name"
               value={name}
+              autoComplete="off"
               onChange={(e) => setName(e.target.value)}
-              className="border-white/15 bg-white/5 text-white placeholder:text-slate-500"
               maxLength={20}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm text-slate-300">Avatar</label>
-            <div className="grid grid-cols-6 gap-2">
+            <label className="text-sm">Avatar</label>
+            <div className="flex gap-1">
               {AVATARS.slice(0, 6).map((avatar) => (
-                <button
+                <Button
                   key={avatar.id}
-                  type="button"
+                  size="icon-lg"
+                  variant={selectedAvatar === avatar.id ? 'outline' : 'ghost'}
                   onClick={() => {
                     setSelectedAvatar(avatar.id);
                     setAvatarId(avatar.id);
                   }}
-                  className={`rounded-md border p-2 text-xl transition ${
-                    selectedAvatar === avatar.id
-                      ? 'border-white bg-white/15'
-                      : 'border-white/10 bg-white/5 hover:bg-white/10'
-                  }`}
                 >
-                  {avatar.emoji}
-                </button>
+                  <img className="size-6" src={`https://emojicdn.elk.sh/${avatar.emoji}`} />
+                </Button>
               ))}
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Button onClick={() => enterLobby('create')} disabled={!name.trim()}>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => enterLobby('create')}
+              disabled={!name.trim()}
+              size={'lg'}
+              className="flex-1"
+            >
               Create Room
             </Button>
-            <Button onClick={() => enterLobby('join')} variant="outline" disabled={!name.trim()}>
+            <Button
+              onClick={() => enterLobby('join')}
+              variant="outline"
+              disabled={!name.trim()}
+              size={'lg'}
+              className="flex-1"
+            >
               Join Room
-            </Button>
-            <Button onClick={() => enterLobby('browse')} variant="ghost" disabled={!name.trim()}>
-              Browse Rooms
             </Button>
           </div>
         </CardContent>

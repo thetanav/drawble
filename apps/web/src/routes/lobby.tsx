@@ -57,57 +57,48 @@ function LobbyComponent() {
   };
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <Card className="border-white/15 bg-slate-950/70 text-white">
+    <div className="h-screen flex items-center justify-center">
+      <div className="mx-auto flex w-xl flex-col gap-4">
+        <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Lobby</CardTitle>
-            <CardDescription className="text-slate-300">
-              Signed in as {nickname || 'Player'}.
-            </CardDescription>
+            <CardDescription>Signed in as {nickname || 'Player'}.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-3">
-            {action === 'create' ? (
-              <Button onClick={handleCreateRoom}>Create</Button>
-            ) : (
-              <Input
-                placeholder="Room code"
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                className="border-white/15 bg-white/5 text-white placeholder:text-slate-500"
-                maxLength={6}
-              />
-            )}
+          <CardContent className="flex gap-2">
+            {action === 'create' && <Button onClick={handleCreateRoom}>Create</Button>}
             {action === 'join' && (
-              <Button onClick={handleJoinRoom} disabled={roomCode.length < 6}>
-                Join
-              </Button>
-            )}
-            {action === 'browse' && (
-              <Button onClick={() => navigate({ to: '/' })} variant="outline">
-                Back
-              </Button>
+              <>
+                <Input
+                  placeholder="Room code"
+                  value={roomCode}
+                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                  maxLength={6}
+                />
+                <Button onClick={handleJoinRoom} disabled={roomCode.length < 6}>
+                  Join
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-white/15 bg-slate-950/70 text-white">
+        <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-lg">Rooms</CardTitle>
-            <CardDescription className="text-slate-300">Join any open lobby.</CardDescription>
+            <CardDescription>Join any open lobby.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 overflow-auto">
             {rooms.length === 0 ? (
-              <p className="text-sm text-slate-400">No rooms yet.</p>
+              <p className="text-sm text-muted-foreground">No rooms yet.</p>
             ) : (
               rooms.map((room) => (
                 <div
                   key={room.id}
-                  className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2"
+                  className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2"
                 >
                   <div>
                     <p className="font-medium">Room {room.code}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       {room.playerCount}/{room.maxPlayers} players
                     </p>
                   </div>

@@ -9,7 +9,7 @@ export function useSocket() {
   const { setRoom } = useRoomStore();
   const { setGameState, setWordChoices, setTimeLeft } = useGameStore();
   const { addMessage } = useChatStore();
-  const { setLeaderboard } = useLeaderboardStore();
+  const { setLeaderboard, showLeaderboard, hideLeaderboard } = useLeaderboardStore();
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -52,6 +52,7 @@ export function useSocket() {
     });
 
     socket.on(EVENTS.GAME_ROUND_START, (data: any) => {
+      hideLeaderboard();
       const currentWord = useGameStore.getState().gameState?.currentWord ?? '';
       setGameState({
         currentRound: data.round,
@@ -96,10 +97,12 @@ export function useSocket() {
 
     socket.on(EVENTS.GAME_ROUND_END, (data: any) => {
       setLeaderboard(data.leaderboard);
+      showLeaderboard();
     });
 
     socket.on(EVENTS.GAME_GAME_OVER, (data: any) => {
       setLeaderboard(data.leaderboard);
+      showLeaderboard();
     });
 
     socket.on(EVENTS.CHAT_MESSAGE, (message: any) => {
