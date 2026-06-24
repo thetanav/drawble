@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { AVATARS, BRUSH_SIZES, CANVAS_COLORS } from '@draw/shared';
+import {
+  AVATARS,
+  BRUSH_SIZES,
+  CANVAS_COLORS,
+  MAX_DRAW_TIME,
+  MAX_PLAYERS,
+  MAX_ROUNDS,
+  MIN_DRAW_TIME,
+  MIN_PLAYERS,
+  MIN_ROUNDS,
+  type RoomSettings,
+  type WordPack,
+} from '@draw/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +49,7 @@ function RoomComponent() {
     endDrawing,
     sendChat,
     setReady,
+    updateRoomSettings,
   } = useSocket();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,9 +59,14 @@ function RoomComponent() {
   const [brushSize, setBrushSize] = useState(6);
   const [selectedTool, setSelectedTool] = useState<'pen' | 'eraser'>('pen');
   const [selectedWord, setSelectedWord] = useState('');
+  const [settingsDraft, setSettingsDraft] = useState<RoomSettings | null>(null);
   const currentStrokeRef = useRef<{ x: number; y: number }[]>([]);
+  const completedStrokesRef = useRef<
+    { points: { x: number; y: number }[]; color: string; width: number }[]
+  >([]);
 
   const isDrawer = gameState?.currentDrawer === playerId;
+  const isHost = currentRoom?.host === playerId;
   const players = currentRoom ? Array.from(currentRoom.players.values()) : [];
   const currentPlayer = currentRoom?.players.get(playerId ?? '');
   const isReady = currentPlayer?.ready ?? false;
@@ -101,6 +119,59 @@ function RoomComponent() {
     }
   }, [gameState?.phase]);
 
+  useEffect(() => {
+    if (!currentRoom) return;
+    setSettingsDraft(currentRoom.settings);
+  }, [
+    currentRoom?.id,
+    currentRoom?.settings.maxPlayers,
+    currentRoom?.settings.rounds,
+    currentRoom?.settings.drawTime,
+    currentRoom?.settings.wordPack,
+  ]);
+
+  const redrawAllStrokes = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const stroke of completedStrokesRef.current) {
+      drawStroke(ctx, stroke.points, stroke.color, stroke.width);
+    }
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeCanvas = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+
+      const rect = parent.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.scale(dpr, dpr);
+      redrawAllStrokes();
+    };
+
+    resizeCanvas();
+
+    const observer = new ResizeObserver(resizeCanvas);
+    observer.observe(canvas.parentElement!);
+
+    return () => observer.disconnect();
+  }, [redrawAllStrokes]);
+
+  useEffect(() => {
+    completedStrokesRef.current = [];
+    redrawAllStrokes();
+  }, [gameState?.phase, gameState?.currentRound, redrawAllStrokes]);
+
   const drawRemoteStroke = useCallback((stroke: any) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -135,24 +206,29 @@ function RoomComponent() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStroke(
-      ctx,
-      currentStrokeRef.current,
-      selectedTool === 'eraser' ? '#FFFFFF' : selectedColor,
-      selectedTool === 'eraser' ? brushSize * 3 : brushSize
-    );
+    const color = selectedTool === 'eraser' ? '#FFFFFF' : selectedColor;
+    const width = selectedTool === 'eraser' ? brushSize * 3 : brushSize;
+
+    redrawAllStrokes();
+    drawStroke(ctx, currentStrokeRef.current, color, width);
 
     sendDrawing({
       tool: selectedTool,
       points: currentStrokeRef.current,
-      color: selectedTool === 'eraser' ? '#FFFFFF' : selectedColor,
-      width: selectedTool === 'eraser' ? brushSize * 3 : brushSize,
+      color,
+      width,
     });
   };
 
   const handleCanvasMouseUp = () => {
     if (isDrawing && isDrawer) {
+      const color = selectedTool === 'eraser' ? '#FFFFFF' : selectedColor;
+      const width = selectedTool === 'eraser' ? brushSize * 3 : brushSize;
+      completedStrokesRef.current.push({
+        points: [...currentStrokeRef.current],
+        color,
+        width,
+      });
       endDrawing();
     }
     setIsDrawing(false);
@@ -177,6 +253,11 @@ function RoomComponent() {
     else handleGuess();
   };
 
+  const handleSaveSettings = () => {
+    if (!settingsDraft || !isHost) return;
+    updateRoomSettings(settingsDraft);
+  };
+
   if (!currentRoom) return null;
 
   return (
@@ -193,6 +274,85 @@ function RoomComponent() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {currentRoom.status === 'lobby' && isHost && settingsDraft ? (
+            <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">Room settings</p>
+                  <p className="text-xs text-muted-foreground">
+                    Update before starting or before the next game.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleSaveSettings}>
+                  Save settings
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Players</span>
+                  <Input
+                    type="number"
+                    min={MIN_PLAYERS}
+                    max={MAX_PLAYERS}
+                    value={settingsDraft.maxPlayers}
+                    onChange={(e) =>
+                      setSettingsDraft((current) =>
+                        current ? { ...current, maxPlayers: Number(e.target.value) } : current
+                      )
+                    }
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Rounds</span>
+                  <Input
+                    type="number"
+                    min={MIN_ROUNDS}
+                    max={MAX_ROUNDS}
+                    value={settingsDraft.rounds}
+                    onChange={(e) =>
+                      setSettingsDraft((current) =>
+                        current ? { ...current, rounds: Number(e.target.value) } : current
+                      )
+                    }
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Draw time</span>
+                  <Input
+                    type="number"
+                    min={MIN_DRAW_TIME}
+                    max={MAX_DRAW_TIME}
+                    value={settingsDraft.drawTime}
+                    onChange={(e) =>
+                      setSettingsDraft((current) =>
+                        current ? { ...current, drawTime: Number(e.target.value) } : current
+                      )
+                    }
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">Word pack</span>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={settingsDraft.wordPack}
+                    onChange={(e) =>
+                      setSettingsDraft((current) =>
+                        current ? { ...current, wordPack: e.target.value as WordPack } : current
+                      )
+                    }
+                  >
+                    <option value="general">General</option>
+                    <option value="food">Food</option>
+                    <option value="animals">Animals</option>
+                    <option value="objects">Objects</option>
+                    <option value="nature">Nature</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          ) : null}
+
           {gameState?.phase === 'choosing' && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
@@ -237,15 +397,16 @@ function RoomComponent() {
                 </p>
               )}
 
-              {/*canvas is not responsive*/}
-              <canvas
-                ref={canvasRef}
-                className="w-full h-108 rounded-md border border-border bg-background"
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-                onMouseLeave={handleCanvasMouseUp}
-              />
+              <div className="w-full aspect-[4/3] rounded-md border border-border bg-background overflow-hidden">
+                <canvas
+                  ref={canvasRef}
+                  className="w-full h-full"
+                  onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseUp={handleCanvasMouseUp}
+                  onMouseLeave={handleCanvasMouseUp}
+                />
+              </div>
 
               {isDrawer ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -307,7 +468,7 @@ function RoomComponent() {
               </Button>
               {currentRoom.host === playerId ? (
                 <Button onClick={startGame} disabled={players.length < 2 || !allPlayersReady}>
-                  Start
+                  {leaderboardVisible ? 'Start new game' : 'Start'}
                 </Button>
               ) : null}
               {currentRoom.host === playerId && !allPlayersReady ? (

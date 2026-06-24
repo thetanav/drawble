@@ -17,6 +17,10 @@ export function setupGameHandlers(
       socket.emit(EVENTS.ERROR, { message: 'Only the host can start the game' });
       return;
     }
+    if (room.status !== 'lobby') {
+      socket.emit(EVENTS.ERROR, { message: 'Game can only be started from the lobby' });
+      return;
+    }
     if (room.players.size < 2) {
       socket.emit(EVENTS.ERROR, { message: 'Need at least 2 players' });
       return;
@@ -137,12 +141,19 @@ function handleRoundEnd(io: Server, room: any, roomManager: RoomManager, gameEng
 
     if (!next) {
       // Game over
-      room.status = 'finished';
+      const leaderboard = gameEngine.getLeaderboard(room);
+      const stats = gameEngine.getGameStats(room);
+      room.status = 'lobby';
+      room.game = null;
+      room.players.forEach((player: any) => {
+        player.ready = false;
+      });
       io.to(room.id).emit(EVENTS.GAME_GAME_OVER, {
-        leaderboard: gameEngine.getLeaderboard(room),
-        stats: gameEngine.getGameStats(room),
+        leaderboard,
+        stats,
       });
       io.to(room.id).emit(EVENTS.ROOM_STATE, serializeRoom(room));
+      io.emit(EVENTS.ROOM_LIST_UPDATE, roomManager.getRoomList());
       return;
     }
 

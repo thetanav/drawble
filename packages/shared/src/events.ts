@@ -8,6 +8,7 @@ export const EVENTS = {
   ROOM_CREATE: 'room:create',
   ROOM_JOIN: 'room:join',
   ROOM_LEAVE: 'room:leave',
+  ROOM_SETTINGS_UPDATE: 'room:settings:update',
   ROOM_STATE: 'room:state',
   ROOM_LIST: 'room:list',
   ROOM_LIST_UPDATE: 'room:list:update',

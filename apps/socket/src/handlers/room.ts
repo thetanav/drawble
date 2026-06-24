@@ -1,4 +1,5 @@
 import type { Server, Socket } from 'socket.io';
+import type { RoomSettings } from '@draw/shared';
 import { EVENTS } from '@draw/shared';
 import type { RoomManager } from '../state/roomManager.js';
 import { serializeRoom } from './connection.js';
@@ -10,7 +11,7 @@ export function setupRoomHandlers(
 ) {
   socket.on(
     EVENTS.ROOM_CREATE,
-    (data: { nickname: string; avatarId: number; settings?: any }) => {
+    (data: { nickname: string; avatarId: number; settings?: Partial<RoomSettings> }) => {
       const room = roomManager.createRoom(
         socket.id,
         data.nickname,
@@ -25,6 +26,25 @@ export function setupRoomHandlers(
       io.emit(EVENTS.ROOM_LIST_UPDATE, roomManager.getRoomList());
     }
   );
+
+  socket.on(EVENTS.ROOM_SETTINGS_UPDATE, (data: { settings: Partial<RoomSettings> }) => {
+    const room = roomManager.getRoomByPlayer(socket.id);
+    if (!room) return;
+    if (room.host !== socket.id) {
+      socket.emit(EVENTS.ERROR, { message: 'Only the host can change room settings' });
+      return;
+    }
+    if (room.status !== 'lobby') {
+      socket.emit(EVENTS.ERROR, { message: 'Room settings can only be changed in the lobby' });
+      return;
+    }
+
+    const updated = roomManager.updateRoomSettings(room.id, data.settings);
+    if (!updated) return;
+
+    io.to(room.id).emit(EVENTS.ROOM_STATE, serializeRoom(updated));
+    io.emit(EVENTS.ROOM_LIST_UPDATE, roomManager.getRoomList());
+  });
 
   socket.on(
     EVENTS.ROOM_JOIN,

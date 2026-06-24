@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { EVENTS } from '@draw/shared';
+import { EVENTS, type RoomSettings } from '@draw/shared';
 import { usePlayerStore, useRoomStore, useGameStore, useChatStore, useLeaderboardStore } from '../stores';
 import { getSocket, connectSocket } from '../lib/socket';
 
@@ -146,12 +146,17 @@ export function useSocket() {
   }, [nickname, avatarId, setPlayer]);
 
   const createRoom = useCallback(
-    (settings?: any) => {
+    (settings?: Partial<RoomSettings>) => {
       const socket = socketRef.current;
       socket.emit(EVENTS.ROOM_CREATE, { nickname, avatarId, settings });
     },
     [nickname, avatarId]
   );
+
+  const updateRoomSettings = useCallback((settings: Partial<RoomSettings>) => {
+    const socket = socketRef.current;
+    socket.emit(EVENTS.ROOM_SETTINGS_UPDATE, { settings });
+  }, []);
 
   const joinRoom = useCallback(
     (roomCode: string) => {
@@ -210,6 +215,7 @@ export function useSocket() {
     socket: socketRef.current,
     joinSocket,
     createRoom,
+    updateRoomSettings,
     joinRoom,
     leaveRoom,
     startGame,
