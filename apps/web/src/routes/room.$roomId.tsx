@@ -187,7 +187,6 @@ function RoomComponent() {
             Room <span className="text-muted-foreground">{currentRoom.code}</span>
           </CardTitle>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{nickname}</span>
             <Button variant="ghost" size="sm" onClick={leaveRoom}>
               Leave
             </Button>
@@ -238,11 +237,10 @@ function RoomComponent() {
                 </p>
               )}
 
+              {/*canvas is not responsive*/}
               <canvas
                 ref={canvasRef}
-                width={800}
-                height={480}
-                className="w-full rounded-md border border-border bg-background"
+                className="w-full h-108 rounded-md border border-border bg-background"
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseUp={handleCanvasMouseUp}
@@ -251,28 +249,28 @@ function RoomComponent() {
 
               {isDrawer ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant={selectedTool === 'pen' ? 'default' : 'outline'}
-                    onClick={() => setSelectedTool('pen')}
-                  >
-                    Pen
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={selectedTool === 'eraser' ? 'default' : 'outline'}
-                    onClick={() => setSelectedTool('eraser')}
-                  >
-                    Eraser
-                  </Button>
+                  <div className="flex border rounded-lg">
+                    <Button
+                      variant={selectedTool === 'pen' ? 'default' : 'ghost'}
+                      onClick={() => setSelectedTool('pen')}
+                    >
+                      Pen
+                    </Button>
+                    <Button
+                      variant={selectedTool === 'eraser' ? 'default' : 'ghost'}
+                      onClick={() => setSelectedTool('eraser')}
+                    >
+                      Eraser
+                    </Button>
+                  </div>
                   <div className="h-6 w-px bg-border" />
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     {CANVAS_COLORS.slice(0, 6).map((color) => (
                       <button
                         key={color}
                         type="button"
                         onClick={() => setSelectedColor(color)}
-                        className={`h-5 w-5 rounded-full border ${
+                        className={`size-5 rounded-full border ${
                           selectedColor === color ? 'border-foreground' : 'border-border'
                         }`}
                         style={{ backgroundColor: color }}
@@ -280,12 +278,11 @@ function RoomComponent() {
                     ))}
                   </div>
                   <div className="h-6 w-px bg-border" />
-                  <div className="flex gap-2">
+                  <div className="flex border rounded-lg">
                     {Object.entries(BRUSH_SIZES).map(([name, size]) => (
                       <Button
                         key={name}
-                        size="sm"
-                        variant={brushSize === size ? 'default' : 'outline'}
+                        variant={brushSize === size ? 'default' : 'ghost'}
                         onClick={() => setBrushSize(size)}
                       >
                         {name}
@@ -323,39 +320,36 @@ function RoomComponent() {
         </CardContent>
       </Card>
 
-      <div className="grid">
-        <Card className="rounded-none">
+      <div className="flex flex-col">
+        <Card className="rounded-none flex-1">
           <CardHeader>
             <CardTitle className="text-base">Players</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 overflow-auto">
             {players.map((player) => (
-              <div
-                key={player.id}
-                className={`flex items-center gap-2 rounded-md border px-2 py-1 text-sm ${
-                  gameState?.currentDrawer === player.id
-                    ? 'border-border bg-accent'
-                    : 'border-border bg-background'
-                }`}
-              >
-                <span>{AVATARS[player.avatarId]?.emoji || '😀'}</span>
-                <span className="flex-1 truncate">{player.nickname}</span>
+              <div key={player.id} className="flex items-center gap-2 text-md">
+                <span>
+                  <img
+                    className="size-4"
+                    src={'https://emojicdn.elk.sh/' + AVATARS[player.avatarId]?.emoji || '😀'}
+                  />
+                </span>
+                <span className="flex-1 truncate">
+                  {player.nickname}
+                  {player.nickname == nickname && ' (you)'}
+                  {gameState?.currentDrawer === player.id ? '*' : ''}
+                </span>
+                {player.id === currentRoom.host ? <span>host</span> : null}
                 <Badge variant="secondary" className="shrink-0">
                   {getPlayerScore(player.id)} pts
                 </Badge>
-                <span
-                  className={`text-xs ${player.ready ? 'text-foreground' : 'text-muted-foreground'}`}
-                >
-                  {player.ready ? 'Ready' : 'Not ready'}
-                </span>
-                {player.id === currentRoom.host ? <span>★</span> : null}
               </div>
             ))}
           </CardContent>
         </Card>
 
-        {leaderboardVisible && leaderboard.length > 0 ? (
-          <Card className="relative overflow-hidden rounded-none border-amber-200 bg-gradient-to-br from-amber-50 via-background to-background">
+        {leaderboardVisible && leaderboard.length > 0 && (
+          <Card className="flex-1 relative overflow-hidden rounded-none border-amber-200 bg-gradient-to-br from-amber-50 via-background to-background">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div key={celebrationToken} className="absolute inset-0">
                 {confettiPieces.map((piece, index) => (
@@ -375,29 +369,32 @@ function RoomComponent() {
               </div>
             </div>
             <CardHeader className="relative">
-              <CardTitle className="text-base">Leaderboard</CardTitle>
-              <p className="text-sm text-muted-foreground">Final scores from the round.</p>
+              <CardTitle className="text-base">Leaderboard (till now)</CardTitle>
             </CardHeader>
-            <CardContent className="relative space-y-2">
+            <CardContent className="relative space-y-2 overflow-auto">
               {leaderboard.map((entry) => (
                 <div
                   key={entry.playerId}
                   className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${
-                    entry.rank === 1 ? 'border-amber-300 bg-amber-100/70' : 'border-border bg-background'
+                    entry.rank === 1
+                      ? 'border-amber-300 bg-amber-100/70'
+                      : 'border-border bg-background'
                   }`}
                 >
                   <span className="w-5 text-center font-semibold text-muted-foreground">
                     #{entry.rank}
                   </span>
                   <span className="flex-1 truncate font-medium">{entry.playerName}</span>
-                  <Badge variant={entry.rank === 1 ? 'default' : 'outline'}>{entry.score} pts</Badge>
+                  <Badge variant={entry.rank === 1 ? 'default' : 'outline'}>
+                    {entry.score} pts
+                  </Badge>
                 </div>
               ))}
             </CardContent>
           </Card>
-        ) : null}
+        )}
 
-        <Card className="rounded-none">
+        <Card className="rounded-none flex-2">
           <CardHeader>
             <CardTitle className="text-base">Chat</CardTitle>
           </CardHeader>
