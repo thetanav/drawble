@@ -2,17 +2,14 @@ import { Server } from 'socket.io';
 import { createServer } from 'http';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { serve } from '@hono/node-server';
 import { RoomManager } from './state/roomManager.js';
 import { GameEngine } from './game/engine.js';
 import { setupConnectionHandlers } from './handlers/connection.js';
 import { setupRoomHandlers } from './handlers/room.js';
 import { setupGameHandlers } from './handlers/game.js';
 import { setupChatHandlers } from './handlers/chat.js';
-import { serializeRoom } from './handlers/connection.js';
 
 const PORT = parseInt(process.env.PORT || '3001');
-const API_URL = process.env.API_URL || 'http://localhost:3000';
 const corsOrigin = process.env.CORS_ORIGNS?.split(',') || ['http://localhost:5173'];
 
 const app = new Hono();

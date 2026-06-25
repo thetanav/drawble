@@ -10,7 +10,6 @@ export function setupConnectionHandlers(
   gameEngine: GameEngine
 ) {
   socket.on(EVENTS.PLAYER_JOIN, (data: { nickname: string; avatarId: number }) => {
-    const playerId = socket.id;
     (socket as any).playerData = {
       nickname: data.nickname,
       avatarId: data.avatarId,
