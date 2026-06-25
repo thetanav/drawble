@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "start": "pnpm run preview",
     "preview": "vite preview",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"

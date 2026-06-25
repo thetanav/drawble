@@ -5,13 +5,17 @@ import { serve } from '@hono/node-server';
 import wordsRouter from './routes/words.js';
 
 const PORT = parseInt(process.env.API_PORT || '3000');
+const corsOrigin = process.env.CORS_ORIGNS?.split(',') || ['http://localhost:5173'];
 
 const app = new Hono();
 
-app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
-  credentials: true,
-}));
+app.use(
+  '/*',
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
 
 app.use('/*', logger());
 
@@ -21,9 +25,12 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok', service: 'api', timestamp: Date.now() });
 });
 
-serve({
-  fetch: app.fetch,
-  port: PORT,
-}, () => {
-  console.log(`API server running on port ${PORT}`);
-});
+serve(
+  {
+    fetch: app.fetch,
+    port: PORT,
+  },
+  () => {
+    console.log(`API server running on port ${PORT}`);
+  }
+);

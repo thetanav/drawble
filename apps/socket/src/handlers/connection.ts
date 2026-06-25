@@ -15,7 +15,7 @@ export function setupConnectionHandlers(
       nickname: data.nickname,
       avatarId: data.avatarId,
     };
-    console.log(`Player connected: ${data.nickname} (${playerId})`);
+    // console.log(`Player connected: ${data.nickname} (${playerId})`);
 
     socket.emit(EVENTS.ROOM_LIST_UPDATE, roomManager.getRoomList());
   });
@@ -38,7 +38,7 @@ export function setupConnectionHandlers(
         }
       }
     }
-    console.log(`Player disconnected: ${socket.id}`);
+    // console.log(`Player disconnected: ${socket.id}`);
   });
 }
 

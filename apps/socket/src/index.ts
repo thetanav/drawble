@@ -11,15 +11,16 @@ import { setupGameHandlers } from './handlers/game.js';
 import { setupChatHandlers } from './handlers/chat.js';
 import { serializeRoom } from './handlers/connection.js';
 
-const PORT = parseInt(process.env.WS_PORT || '3001');
+const PORT = parseInt(process.env.PORT || '3001');
 const API_URL = process.env.API_URL || 'http://localhost:3000';
+const corsOrigin = process.env.CORS_ORIGNS?.split(',') || ['http://localhost:5173'];
 
 const app = new Hono();
 
 app.use(
   '/*',
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+    origin: corsOrigin,
     credentials: true,
   })
 );
@@ -32,7 +33,7 @@ const httpServer = createServer(app.fetch as any);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+    origin: corsOrigin,
     credentials: true,
   },
   transports: ['websocket', 'polling'],
@@ -42,7 +43,7 @@ const roomManager = new RoomManager();
 const gameEngine = new GameEngine();
 
 io.on('connection', (socket) => {
-  console.log(`Client connected: ${socket.id}`);
+  // console.log(`Client connected: ${socket.id}`);
 
   setupConnectionHandlers(io, socket, roomManager, gameEngine);
   setupRoomHandlers(io, socket, roomManager);
