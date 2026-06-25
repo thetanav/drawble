@@ -1,4 +1,4 @@
-import type { WordPack } from './types';
+import type { WordPack } from './types.js';
 
 export const WORD_BANK: Record<WordPack, string[]> = {
   general: [
