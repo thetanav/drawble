@@ -23,22 +23,47 @@ export function getSvgPathFromStroke(stroke: { x: number; y: number }[]): string
   return d;
 }
 
+export type CanvasPoint = { x: number; y: number };
+
+export type CanvasStroke = {
+  points: CanvasPoint[];
+  color: string;
+  width: number;
+  tool?: 'pen' | 'eraser';
+};
+
 export function drawStroke(
   ctx: CanvasRenderingContext2D,
-  points: { x: number; y: number }[],
+  points: CanvasPoint[],
   color: string,
-  width: number
+  width: number,
+  tool: 'pen' | 'eraser' = 'pen'
 ) {
   const outlinePoints = getStroke(points, {
     size: width,
-    thinning: 0.5,
-    smoothing: 0.5,
-    streamline: 0.5,
+    thinning: 0.45,
+    smoothing: 0.25,
+    streamline: 0.2,
   });
 
-  if (outlinePoints.length < 2) return;
+  ctx.save();
+  ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+  ctx.fillStyle = tool === 'eraser' ? 'rgba(0,0,0,1)' : color;
 
-  ctx.fillStyle = color;
+  if (outlinePoints.length < 2) {
+    const p = points[0];
+    if (!p) {
+      ctx.restore();
+      return;
+    }
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(1, width / 2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   ctx.beginPath();
   ctx.moveTo(outlinePoints[0][0], outlinePoints[0][1]);
 
@@ -54,4 +79,5 @@ export function drawStroke(
   ctx.lineTo(last[0], last[1]);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
 }

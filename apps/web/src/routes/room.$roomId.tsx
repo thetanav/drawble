@@ -26,12 +26,18 @@ import {
 } from '@/stores';
 import { useSocket } from '@/hooks/useSocket';
 import { formatTime } from '@/lib/extras';
-import { drawStroke } from '@/lib/canvas';
+import { drawStroke, type CanvasPoint, type CanvasStroke } from '@/lib/canvas';
 import { getSocket } from '@/lib/socket';
 
 export const Route = createFileRoute('/room/$roomId')({
   component: RoomComponent,
 });
+
+type IncomingStroke = CanvasStroke & {
+  strokeId?: string;
+  isFinal?: boolean;
+  playerId?: string;
+};
 
 function RoomComponent() {
   const navigate = useNavigate();
@@ -54,16 +60,18 @@ function RoomComponent() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [chatInput, setChatInput] = useState('');
-  const [isDrawing, setIsDrawing] = useState(false);
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(6);
   const [selectedTool, setSelectedTool] = useState<'pen' | 'eraser'>('pen');
   const [selectedWord, setSelectedWord] = useState('');
   const [settingsDraft, setSettingsDraft] = useState<RoomSettings | null>(null);
-  const currentStrokeRef = useRef<{ x: number; y: number }[]>([]);
-  const completedStrokesRef = useRef<
-    { points: { x: number; y: number }[]; color: string; width: number }[]
-  >([]);
+  const completedStrokesRef = useRef<CanvasStroke[]>([]);
+  const activeStrokeRef = useRef<(CanvasStroke & { strokeId: string }) | null>(null);
+  const remoteDraftStrokesRef = useRef<Map<string, CanvasStroke>>(new Map());
+  const isPointerDownRef = useRef(false);
+  const renderFrameRef = useRef<number | null>(null);
+  const broadcastFrameRef = useRef<number | null>(null);
+  const pendingBroadcastRef = useRef<IncomingStroke | null>(null);
 
   const isDrawer = gameState?.currentDrawer === playerId;
   const isHost = currentRoom?.host === playerId;
@@ -93,25 +101,83 @@ function RoomComponent() {
     leaderboard.find((entry) => entry.playerId === playerId)?.score ??
     0;
 
+  const getCanvasPoint = (event: { clientX: number; clientY: number }): CanvasPoint | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const appendPoints = (
+    stroke: CanvasStroke & { strokeId: string },
+    points: Array<{ clientX: number; clientY: number }>
+  ) => {
+    let lastPoint = stroke.points[stroke.points.length - 1] ?? null;
+
+    for (const pointLike of points) {
+      const point = getCanvasPoint(pointLike);
+      if (!point) continue;
+
+      if (lastPoint) {
+        const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
+        if (distance < 0.5) continue;
+      }
+
+      stroke.points.push(point);
+      lastPoint = point;
+    }
+  };
+
+  const scheduleRedraw = useCallback(() => {
+    if (renderFrameRef.current !== null) return;
+
+    renderFrameRef.current = window.requestAnimationFrame(() => {
+      renderFrameRef.current = null;
+      redrawAllStrokes();
+    });
+  }, []);
+
+  const scheduleBroadcast = useCallback(
+    (stroke: IncomingStroke) => {
+      pendingBroadcastRef.current = {
+        ...stroke,
+        points: [...stroke.points],
+      };
+
+      if (broadcastFrameRef.current !== null) return;
+
+      broadcastFrameRef.current = window.requestAnimationFrame(() => {
+        broadcastFrameRef.current = null;
+        const payload = pendingBroadcastRef.current;
+        pendingBroadcastRef.current = null;
+        if (payload) {
+          sendDrawing(payload);
+        }
+      });
+    },
+    [sendDrawing]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (renderFrameRef.current !== null) {
+        window.cancelAnimationFrame(renderFrameRef.current);
+      }
+      if (broadcastFrameRef.current !== null) {
+        window.cancelAnimationFrame(broadcastFrameRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentRoom) {
       navigate({ to: '/' });
     }
   }, [currentRoom, navigate]);
-
-  useEffect(() => {
-    const socket = getSocket();
-    const handleTick = (data: { timeLeft: number }) => setTimeLeft(data.timeLeft);
-    const handleStroke = (data: any) => drawRemoteStroke(data.stroke);
-
-    socket.on('timer:tick', handleTick);
-    socket.on('game:drawing-data', handleStroke);
-
-    return () => {
-      socket.off('timer:tick', handleTick);
-      socket.off('game:drawing-data', handleStroke);
-    };
-  }, [setTimeLeft]);
 
   useEffect(() => {
     if (gameState?.phase === 'choosing') {
@@ -136,9 +202,25 @@ function RoomComponent() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
     for (const stroke of completedStrokesRef.current) {
-      drawStroke(ctx, stroke.points, stroke.color, stroke.width);
+      drawStroke(ctx, stroke.points, stroke.color, stroke.width, stroke.tool);
+    }
+
+    for (const stroke of remoteDraftStrokesRef.current.values()) {
+      drawStroke(ctx, stroke.points, stroke.color, stroke.width, stroke.tool);
+    }
+
+    if (activeStrokeRef.current) {
+      const stroke = activeStrokeRef.current;
+      drawStroke(ctx, stroke.points, stroke.color, stroke.width, stroke.tool);
     }
   }, []);
 
@@ -152,11 +234,11 @@ function RoomComponent() {
 
       const rect = parent.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
       const ctx = canvas.getContext('2d');
-      if (ctx) ctx.scale(dpr, dpr);
-      redrawAllStrokes();
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      scheduleRedraw();
     };
 
     resizeCanvas();
@@ -165,74 +247,138 @@ function RoomComponent() {
     observer.observe(canvas.parentElement!);
 
     return () => observer.disconnect();
-  }, [redrawAllStrokes]);
+  }, [scheduleRedraw]);
 
   useEffect(() => {
     completedStrokesRef.current = [];
+    remoteDraftStrokesRef.current.clear();
+    activeStrokeRef.current = null;
+    isPointerDownRef.current = false;
     redrawAllStrokes();
   }, [gameState?.phase, gameState?.currentRound, redrawAllStrokes]);
 
-  const drawRemoteStroke = useCallback((stroke: any) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const drawRemoteStroke = useCallback(
+    (stroke: IncomingStroke) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      if (!stroke.strokeId) return;
 
-    drawStroke(ctx, stroke.points, stroke.color, stroke.width);
-  }, []);
+      const nextStroke: CanvasStroke = {
+        points: stroke.points,
+        color: stroke.color,
+        width: stroke.width,
+        tool: stroke.tool,
+      };
 
-  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawer) return;
-    setIsDrawing(true);
+      if (stroke.isFinal) {
+        remoteDraftStrokesRef.current.delete(stroke.strokeId);
+        completedStrokesRef.current.push(nextStroke);
+      } else {
+        remoteDraftStrokesRef.current.set(stroke.strokeId, nextStroke);
+      }
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      scheduleRedraw();
+    },
+    [scheduleRedraw]
+  );
 
-    const rect = canvas.getBoundingClientRect();
-    currentStrokeRef.current = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
-  };
+  useEffect(() => {
+    const socket = getSocket();
+    const handleTick = (data: { timeLeft: number }) => setTimeLeft(data.timeLeft);
+    const handleStroke = (data: any) => drawRemoteStroke(data.stroke);
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !isDrawer) return;
+    socket.on('timer:tick', handleTick);
+    socket.on('game:drawing-data', handleStroke);
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    return () => {
+      socket.off('timer:tick', handleTick);
+      socket.off('game:drawing-data', handleStroke);
+    };
+  }, [drawRemoteStroke, setTimeLeft]);
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    currentStrokeRef.current.push({ x, y });
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawer || e.button !== 0) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isPointerDownRef.current = true;
 
-    const color = selectedTool === 'eraser' ? '#FFFFFF' : selectedColor;
-    const width = selectedTool === 'eraser' ? brushSize * 3 : brushSize;
-
-    redrawAllStrokes();
-    drawStroke(ctx, currentStrokeRef.current, color, width);
-
-    sendDrawing({
-      tool: selectedTool,
-      points: currentStrokeRef.current,
-      color,
+    const strokeId = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    const tool = selectedTool;
+    const width = tool === 'eraser' ? Math.max(12, brushSize * 2.5) : brushSize;
+    const stroke: CanvasStroke & { strokeId: string } = {
+      strokeId,
+      points: [],
+      color: tool === 'eraser' ? '#000000' : selectedColor,
       width,
+      tool,
+    };
+
+    appendPoints(stroke, [e]);
+    activeStrokeRef.current = stroke;
+    scheduleRedraw();
+    scheduleBroadcast({
+      strokeId,
+      points: stroke.points,
+      color: stroke.color,
+      width: stroke.width,
+      tool,
+      isFinal: false,
     });
   };
 
-  const handleCanvasMouseUp = () => {
-    if (isDrawing && isDrawer) {
-      const color = selectedTool === 'eraser' ? '#FFFFFF' : selectedColor;
-      const width = selectedTool === 'eraser' ? brushSize * 3 : brushSize;
-      completedStrokesRef.current.push({
-        points: [...currentStrokeRef.current],
-        color,
-        width,
+  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawer || !isPointerDownRef.current || !activeStrokeRef.current) return;
+
+    const activeStroke = activeStrokeRef.current;
+    const nativeEvent = e.nativeEvent as PointerEvent & {
+      getCoalescedEvents?: () => PointerEvent[];
+    };
+    const coalesced = nativeEvent.getCoalescedEvents?.() ?? [];
+    appendPoints(activeStroke, coalesced.length > 0 ? coalesced : [nativeEvent]);
+    if (activeStroke.points.length === 0) return;
+    scheduleRedraw();
+    scheduleBroadcast({
+      strokeId: activeStroke.strokeId,
+      points: activeStroke.points,
+      color: activeStroke.color,
+      width: activeStroke.width,
+      tool: activeStroke.tool,
+      isFinal: false,
+    });
+  };
+
+  const finishStroke = () => {
+    if (isDrawer && activeStrokeRef.current) {
+      const stroke = activeStrokeRef.current;
+      const finalizedStroke: CanvasStroke = {
+        points: [...stroke.points],
+        color: stroke.color,
+        width: stroke.width,
+        tool: stroke.tool,
+      };
+
+      completedStrokesRef.current.push(finalizedStroke);
+      remoteDraftStrokesRef.current.delete(stroke.strokeId);
+      if (broadcastFrameRef.current !== null) {
+        window.cancelAnimationFrame(broadcastFrameRef.current);
+        broadcastFrameRef.current = null;
+      }
+      pendingBroadcastRef.current = null;
+      sendDrawing({
+        strokeId: stroke.strokeId,
+        points: finalizedStroke.points,
+        color: finalizedStroke.color,
+        width: finalizedStroke.width,
+        tool: finalizedStroke.tool,
+        isFinal: true,
       });
       endDrawing();
     }
-    setIsDrawing(false);
-    currentStrokeRef.current = [];
+
+    isPointerDownRef.current = false;
+    activeStrokeRef.current = null;
+    scheduleRedraw();
   };
 
   const handleGuess = () => {
@@ -400,11 +546,12 @@ function RoomComponent() {
               <div className="w-full aspect-[4/3] rounded-md border border-border bg-background overflow-hidden">
                 <canvas
                   ref={canvasRef}
-                  className="w-full h-full"
-                  onMouseDown={handleCanvasMouseDown}
-                  onMouseMove={handleCanvasMouseMove}
-                  onMouseUp={handleCanvasMouseUp}
-                  onMouseLeave={handleCanvasMouseUp}
+                  className="w-full h-full touch-none cursor-crosshair"
+                  onPointerDown={handleCanvasPointerDown}
+                  onPointerMove={handleCanvasPointerMove}
+                  onPointerUp={finishStroke}
+                  onPointerCancel={finishStroke}
+                  onLostPointerCapture={finishStroke}
                 />
               </div>
 
