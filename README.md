@@ -15,8 +15,6 @@
 
 A modern Scribble.io clone built with a monorepo architecture. Players join rooms, take turns drawing words from categorized packs, and race to guess correctly. Points are awarded for speed, with progressive hints and a live leaderboard.
 
-> **Note:** This project uses in-memory state only. Restarting the socket server clears all rooms and games.
-
 ---
 
 ## ✨ Features
@@ -54,16 +52,7 @@ A modern Scribble.io clone built with a monorepo architecture. Players join room
 
 The app follows a **3-tier monorepo architecture** using Turborepo + pnpm workspaces:
 
-```
-┌─────────────┐     ┌──────────────┐     ┌────────────────┐
-│  Web Client │────▶│  REST API    │     │  Socket Server  │
-│  (React 19) │     │  (Hono)      │     │  (Socket.IO)    │
-│  :5173      │     │  :3000       │     │  :3001          │
-└─────────────┘     └──────────────┘     └────────────────┘
-       │                                        │
-       └──────────── Shared Package ────────────┘
-                   (types, constants, words)
-```
+<img width="1017" height="674" alt="image" src="https://github.com/user-attachments/assets/0dafa0d7-21d9-4e32-8dd7-bc06b68df81a" />
 
 | Layer | Description |
 |---|---|
